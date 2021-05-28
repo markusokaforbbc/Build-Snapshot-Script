@@ -1,0 +1,12 @@
+[
+
+    {
+        "ParameterKey": "EnvParam",
+        "ParameterValue": "test"
+    },
+
+    {
+        "ParameterKey": "AlarmEmail",
+        "ParameterValue": "markus.okafor@bbc.co.uk"
+    }
+]

@@ -1,0 +1,111 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+   
+    "Description" : "Creates SQS queues for different environments.",
+    
+    "Parameters" : {
+
+        "EnvParam": {
+            "Type": "String",
+            "Description": "The name of the environment"
+          },
+
+        "AlarmEmail": {
+            "Type": "String",
+            "Description": "Alert email recipient"
+          }
+
+
+    },
+
+    "Resources" : {
+	    
+        "FingerpostSQSQueue" : {
+        "Type" : "AWS::SQS::Queue",
+        "Properties" : {
+            "QueueName": {
+              "Fn::Join" : [ 
+                "-",
+                [
+                  { "Ref": "EnvParam" },
+                  "wolftech-fingerpost-sqs"
+                ] 
+              ]
+           }
+        }
+      },
+
+        "FingerpostSQSPolicy" : {
+          "Type" : "AWS::SQS::QueuePolicy",
+          "DependsOn" : "FingerpostSQSQueue",
+          "Properties" : {
+            "Queues" : [{ "Ref": "FingerpostSQSQueue" }],
+            "PolicyDocument": {
+              "Statement":[{
+                "Action":[ "sqs:*" ],
+                "Effect":"Allow",
+                "Resource": [{ "Ref": "FingerpostSQSQueue" }],
+                "Principal": {
+                  "AWS": [
+                     { "Ref": "AWS::AccountId"}]
+                }
+              }]
+            }
+          }
+        },
+
+        "FingerpostUser" : {
+          "Type" : "AWS::IAM::User",
+          "Properties" : {
+             "Policies" : [ {
+                "PolicyName" : "send-to-agency-wires-policy",
+                "PolicyDocument" : {
+                   "Version": "2012-10-17",
+                   "Statement" : [ {
+                      "Effect" : "Allow",
+                      "Action" : ["SQS:SendMessage", "sqs:SendMessageBatch"],
+                      "Resource" : { "Fn::GetAtt" : ["FingerpostSQSQueue", "Arn"] }
+                   }]
+                }
+             } ]
+          }
+       },
+
+       "AlarmTopic": {
+        "Type": "AWS::SNS::Topic",
+        "Properties": {
+          "Subscription": [{
+            "Endpoint": { "Ref": "AlarmEmail" },
+            "Protocol": "email"
+          }]
+        }
+      },
+
+       "QueueDepthAlarm": {
+        "Type": "AWS::CloudWatch::Alarm",
+        "Properties": {
+          "AlarmDescription": "Alarm if queue depth increases to more than 10 messages",
+          "Namespace": "AWS/SQS",
+          "MetricName": "ApproximateNumberOfMessagesVisible",
+          "Dimensions": [{
+            "Name": "QueueName",
+            "Value" : { "Fn::GetAtt" : ["FingerpostSQSQueue", "QueueName"] }
+          }],
+          "Statistic": "Minimum",
+          "Period": "300",
+          "EvaluationPeriods": "1",
+          "Threshold": "2",
+          "ComparisonOperator": "GreaterThanThreshold",
+          "AlarmActions": [{
+            "Ref": "AlarmTopic"
+          }],
+          "InsufficientDataActions": [{
+            "Ref": "AlarmTopic"
+          }]
+        }
+      }
+       
+    }
+}
+
+    
